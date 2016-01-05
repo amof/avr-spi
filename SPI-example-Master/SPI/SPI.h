@@ -53,8 +53,8 @@ LICENSE:
 /************************************************************************/
 
 /* SPI Mode */
-#define SPI_MODE_MASTER	0x04
-#define SPI_MODE_SLAVE	0x08
+#define SPI_MASTER_ENABLED
+//#define SPI_SLAVE_ENABLED
 
 /* Set size of receive and transmit buffers */
 
@@ -117,7 +117,21 @@ extern void spi_init_slave(void);
 */
 extern void spi_close(void);
 
+/**
+ *  @brief   Put string to ringbuffer for transmitting via SPI & start transmission
+ *			 Stop when nothing more to transmit
+ * 
+ *  @param   s string to be transmitted
+ *  @return  none
+ */
 extern void spi_master_transmit(const char *s);
+/**
+ *  @brief   Read x bytes from the slave
+ * 
+ *  @param   numberOfBytes to read from the slave
+ *  @return  none
+ */
+extern void spi_master_read(uint8_t numberOfBytes);
 
 //extern void spi_master_addSlave(spi_slave_info slave);
 

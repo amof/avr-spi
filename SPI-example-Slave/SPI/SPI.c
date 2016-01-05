@@ -10,6 +10,9 @@
 /* Constants and macros                                                 */
 /************************************************************************/
 
+#define SPI_ACTIVE			0 // SS Pin put Low
+#define SPI_INACTIVE		1 // SS Pin put High	
+
 /* size of RX/TX buffers */
 #define SPI_RX_BUFFER_MASK ( SPI_RX_BUFFER_SIZE - 1)
 #define SPI_TX_BUFFER_MASK ( SPI_TX_BUFFER_SIZE - 1)
@@ -53,8 +56,13 @@ static volatile uint8_t SPI_TxHead;
 static volatile uint8_t SPI_TxTail;
 static volatile uint8_t SPI_RxHead;
 static volatile uint8_t SPI_RxTail;
-static volatile uint8_t SPI_Mode;
-static volatile uint8_t SPI_CTS;
+
+#if defined (SPI_MASTER_ENABLED) && defined(SPI_SLAVE_ENABLED)
+	#error The multimaster mode of I2C is not yet implement. Do not hesitate to implement it, then submit a pull request ! Thx
+#elif defined(SPI_MASTER_ENABLED)
+	static volatile uint8_t SPI_CTS;
+	static volatile uint8_t SPI_bytesRequest; // Number of bytes request
+#endif
 
 ISR(SPI_STC_vect)
 /*************************************************************************
@@ -66,68 +74,72 @@ Purpose:  called when the SS pin has been put low
 	uint16_t tmptail=0;
 	
 	/* SPI MASTER */
+#if defined (SPI_MASTER_ENABLED)
 	
-	if(SPI_Mode==SPI_MODE_MASTER){
-	
-		//RECEIVE
-		// calculate buffer index 
-		tmphead = ( SPI_RxHead + 1) & SPI_RX_BUFFER_MASK;
-		if ( tmphead == SPI_RxTail ) {
-			// error: receive buffer overflow
+	//RECEIVE
+	// calculate buffer index 
+	tmphead = ( SPI_RxHead + 1) & SPI_RX_BUFFER_MASK;
+	if ( tmphead == SPI_RxTail ) {
+		// error: receive buffer overflow
 				
-			} else {
-			// store new index
-			SPI_RxHead = tmphead;
-			// store received data in buffer
-			SPI_RxBuf[tmphead] = SPDR;
-		}
-
-		// SEND
-		if ( SPI_TxHead != SPI_TxTail) {
-			// calculate and store new buffer index 
-			tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
-			SPI_TxTail = tmptail;
-			// get one byte from buffer and write it to UART
-			SPDR = SPI_TxBuf[tmptail];  // start transmission 
-			} else {
-			// tx buffer empty, STOP the transmission
-			SPI_PORT|= (1<<SPI_PIN_SS);
-			SPI_CTS = 1;
-		}
-	}	
-	/* SPI Slave */
-	else if(SPI_Mode==SPI_MODE_SLAVE){
-		
-		//RECEIVE
-		// calculate buffer index
-		tmphead = ( SPI_RxHead + 1) & SPI_RX_BUFFER_MASK;
-		if ( tmphead == SPI_RxTail ) {
-			// error: receive buffer overflow
-					
-			} else {
-			// store new index
-			SPI_RxHead = tmphead;
-			// store received data in buffer
-			SPI_RxBuf[tmphead] = SPDR;
-		}
-
-		// SEND
-		if ( SPI_TxHead != SPI_TxTail) {
-			SPI_CTS=3;
-			// calculate and store new buffer index 
-			tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
-			SPI_TxTail = tmptail;
-			// get one byte from buffer and write it to UART 
-			SPDR = SPI_TxBuf[tmptail];  //start transmission 
-			} 
-		else{
-			SPDR=0;
-			SPI_CTS=2; // allow to full directly SPDR
-		}
+		} else {
+		// store new index
+		SPI_RxHead = tmphead;
+		// store received data in buffer
+		SPI_RxBuf[tmphead] = SPDR;
 	}
+
+	// SEND
+	if ( SPI_TxHead != SPI_TxTail) {
+		// calculate and store new buffer index 
+		tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
+		SPI_TxTail = tmptail;
+		// get one byte from buffer and write it to UART
+		SPDR = SPI_TxBuf[tmptail];  // start transmission 
+		} 
+	else if(SPI_bytesRequest>0){
+		SPI_bytesRequest--;
+		SPDR = 0x00;
+	}
+	else {
+		// tx buffer empty, STOP the transmission
+		SPI_PORT|= (1<<SPI_PIN_SS);
+		SPI_CTS = SPI_INACTIVE;
+	}
+
+	/* SPI Slave */
+#elif defined(SPI_SLAVE_ENABLED)
+		
+	//RECEIVE
+	// calculate buffer index
+	tmphead = ( SPI_RxHead + 1) & SPI_RX_BUFFER_MASK;
+	if ( tmphead == SPI_RxTail ) {
+		// error: receive buffer overflow
+					
+		} else {
+		// store new index
+		SPI_RxHead = tmphead;
+		// store received data in buffer
+		SPI_RxBuf[tmphead] = SPDR;
+	}
+
+	// SEND
+	if ( SPI_TxHead != SPI_TxTail) {
+		// calculate and store new buffer index
+		tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
+		SPI_TxTail = tmptail;
+		// get one byte from buffer and write it to UART
+		SPDR = SPI_TxBuf[tmptail];  //start transmission
+	} 
+	else{
+		SPDR=0x00;
+	}
+	
+#endif
 
 }
 
+#if defined (SPI_MASTER_ENABLED)
 /*************************************************************************
 Function: spi_init_master()
 Purpose:  Initialize SPI in Master Mode
@@ -141,8 +153,7 @@ void spi_init_master(uint8_t mode, uint8_t clock){
 	SPI_DDR |= (1<<SPI_PIN_SS);
 	SPI_PORT|= (1<<SPI_PIN_SS);
 	
-	SPI_Mode = SPI_MODE_MASTER;	
-	SPI_CTS	 = 1; 
+	SPI_CTS	 = SPI_INACTIVE; 
 	// Set MOSI and SCK output, all others input
 	SPI_DDR |= (1<<SPI_PIN_MOSI)|(1<<SPI_PIN_SCK);
 	// Enable SPI, Master, set clock rate
@@ -151,28 +162,83 @@ void spi_init_master(uint8_t mode, uint8_t clock){
 }
 
 /*************************************************************************
+Function: spi_master_transmit()
+Purpose:  transmit string to SPI and launch the SPI communication
+Input:    string to be transmitted
+Returns:  none
+**************************************************************************/
+void spi_master_transmit(const char *s){
+	
+	uint16_t tmptail=0;
+	
+	// Stores datas in buffer
+	while (*s) {
+		spi_putc(*s++);
+	}
+	
+	// Checks if ready to send and proceed
+	if(SPI_CTS==SPI_INACTIVE){
+		
+		SPI_CTS=SPI_ACTIVE;
+		SPI_PORT&= ~(1<<SPI_PIN_SS); // Pull-down the line
+		
+		if ( SPI_TxHead != SPI_TxTail) {
+			tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
+			SPI_TxTail = tmptail;
+			/* get one byte from buffer and write it to UART */
+			SPDR = SPI_TxBuf[tmptail];  /* start transmission */
+		}
+	}
+	
+}
+/*************************************************************************
+Function: spi_master_read()
+Purpose:  transmit 0x00 to get the number of bytes requeste
+Input:    numberOfBytes that want to be read
+Returns:  none
+**************************************************************************/
+void spi_master_read(uint8_t numberOfBytes){
+	
+	SPI_bytesRequest = numberOfBytes;
+	
+	// Checks if ready to send and proceed
+	if(SPI_CTS==SPI_INACTIVE){
+			
+		SPI_CTS=SPI_ACTIVE;
+		SPI_PORT&= ~(1<<SPI_PIN_SS); // Pull-down the line
+		SPDR = 0x00; /* start transmission */
+	}
+}
+/*void spi_master_addSlave(spi_slave_info slave){
+	
+}
+
+void spi_master_transmitToSlave(spi_slave_info slave, const char *s){
+	
+}*/
+#elif defined (SPI_SLAVE_ENABLED)
+/*************************************************************************
 Function: spi_init_slave()
 Purpose:  Initialize SPI in Slave Mode
 Input:    none
 Returns:  none
 **************************************************************************/
 void spi_init_slave(void){
-	
-	SPI_Mode = SPI_MODE_SLAVE;	
+
 	// Set MISO output, all others input
 	SPI_DDR |= (1<<SPI_PIN_MISO);
 	// set SPI enable, spi interrupts enable
 	SPCR = (1<<SPE)|(1<<SPIE);
 	
 	// Clear SPI Interrupt by reading SPSR and SPDR
-	uint8_t dump;
+	uint8_t dump=0x00;
 	dump=SPSR;
 	dump=SPDR;
-	
-	SPI_CTS	 = 2; 
+	SPDR=0x00; // Set SPDR to 0x00
 
 }
 
+#endif
 /*************************************************************************
 Function: spi_close()
 Purpose:  Close SPI, flush and clear any received datas
@@ -188,39 +254,6 @@ void spi_close(void){
 	SPI_PORT&= ~(1<<SPI_PIN_SS);
 	
 }
-
-void spi_master_transmit(const char *s){
-	
-	uint16_t tmptail=0;
-	
-	// Stores datas in buffer
-	while (*s) {
-		spi_putc(*s++);
-	}
-	
-	// Checks if ready to send and proceed
-	if(SPI_CTS==1){
-		
-		SPI_CTS=0;
-		SPI_PORT&= ~(1<<SPI_PIN_SS); // Pull-down the line
-		
-		if ( SPI_TxHead != SPI_TxTail) {
-			tmptail = (SPI_TxTail + 1) & SPI_TX_BUFFER_MASK;
-			SPI_TxTail = tmptail;
-			/* get one byte from buffer and write it to UART */
-			SPDR = SPI_TxBuf[tmptail];  /* start transmission */
-		}
-	}
-	
-}
-
-/*void spi_master_addSlave(spi_slave_info slave){
-	
-}
-
-void spi_master_transmitToSlave(spi_slave_info slave, const char *s){
-	
-}*/
 
 /*************************************************************************
 Function: spi_getc()
@@ -259,14 +292,8 @@ void spi_putc(uint8_t data)
 	tmphead  = (SPI_TxHead + 1) & SPI_TX_BUFFER_MASK;
 
 	if (tmphead != SPI_TxTail){
-		if(SPI_Mode==SPI_MODE_SLAVE&&SPI_CTS==2){
-			SPDR=data;
-			SPI_CTS=3;
-		}else{
-		//there is room in buffer
 		SPI_TxBuf[tmphead] = data;
 		SPI_TxHead = tmphead;
-		}
 
 	}
 	
