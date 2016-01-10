@@ -297,6 +297,7 @@ void spi_putc(uint8_t data)
 
 	tmphead  = (SPI_TxHead + 1) & SPI_TX_BUFFER_MASK;
 	
+	#if defined (SPI_SLAVE_ENABLED)
 	// If no char in SPDR -> fill directly
 	if (SPI_TxHead == SPI_TxTail && SPI_SPDR==SPI_SPDR_EMPTY){
 		SPDR = data;
@@ -306,7 +307,12 @@ void spi_putc(uint8_t data)
 		SPI_TxBuf[tmphead] = data;
 		SPI_TxHead = tmphead;
 	}
-
+	#elif defined (SPI_MASTER_ENABLED)
+	if (tmphead != SPI_TxTail){
+		SPI_TxBuf[tmphead] = data;
+		SPI_TxHead = tmphead;
+	}
+	#endif
 	
 }
 
