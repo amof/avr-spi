@@ -62,6 +62,10 @@ static volatile uint8_t SPI_RxTail;
 #elif defined(SPI_MASTER_ENABLED)
 	static volatile uint8_t SPI_CTS;
 	static volatile uint8_t SPI_bytesRequest; // Number of bytes request
+#elif defined(SPI_SLAVE_ENABLED)
+	static volatile uint8_t SPI_SPDR;
+	#define SPI_SPDR_EMPTY	0
+	#define SPI_SPDR_FULL	1
 #endif
 
 ISR(SPI_STC_vect)
@@ -235,6 +239,8 @@ void spi_init_slave(void){
 	dump=SPSR;
 	dump=SPDR;
 	SPDR=0x00; // Set SPDR to 0x00
+	
+	SPI_SPDR = SPI_SPDR_EMPTY;
 
 }
 
@@ -290,12 +296,17 @@ void spi_putc(uint8_t data)
 	uint16_t tmphead;
 
 	tmphead  = (SPI_TxHead + 1) & SPI_TX_BUFFER_MASK;
-
-	if (tmphead != SPI_TxTail){
+	
+	// If no char in SPDR -> fill directly
+	if (SPI_TxHead == SPI_TxTail && SPI_SPDR==SPI_SPDR_EMPTY){
+		SPDR = data;
+		SPI_SPDR = SPI_SPDR_FULL;
+	}
+	else if (tmphead != SPI_TxTail){
 		SPI_TxBuf[tmphead] = data;
 		SPI_TxHead = tmphead;
-
 	}
+
 	
 }
 
