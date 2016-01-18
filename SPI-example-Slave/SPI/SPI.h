@@ -101,14 +101,14 @@ struct spi_slave_info
    @param   clock SPI_CLOCK_DIVx (x : 2, 4, 8, 16, 32, 64 or 128)
    @return  none
 */
-extern void spi_init_master(uint8_t mode, uint8_t clock);
+extern void spi_master_init(uint8_t mode, uint8_t clock);
 
 /**
    @brief   Initialize SPI in Slave Mode
    @param   none
    @return  none
 */
-extern void spi_init_slave(void);
+extern void spi_slave_init(void);
 
 /**
    @brief   Close SPI, flush and clear any received datas
@@ -120,14 +120,13 @@ extern void spi_close(void);
 /**
  *  @brief   Put string to ringbuffer for transmitting via SPI & start transmission
  *			 Stop when nothing more to transmit
- * 
  *  @param   s string to be transmitted
  *  @return  none
  */
 extern void spi_master_transmit(const char *s);
+
 /**
  *  @brief   Read x bytes from the slave
- * 
  *  @param   numberOfBytes to read from the slave
  *  @return  none
  */

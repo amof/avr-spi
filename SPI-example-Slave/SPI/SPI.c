@@ -58,7 +58,7 @@ static volatile uint8_t SPI_RxHead;
 static volatile uint8_t SPI_RxTail;
 
 #if defined (SPI_MASTER_ENABLED) && defined(SPI_SLAVE_ENABLED)
-	#error The multimaster mode of I2C is not yet implement. Do not hesitate to implement it, then submit a pull request ! Thx
+	#error The multimaster mode of SPI is not yet implement. Do not hesitate to implement it, then submit a pull request ! Thx
 #elif defined(SPI_MASTER_ENABLED)
 	static volatile uint8_t SPI_CTS;
 	static volatile uint8_t SPI_bytesRequest; // Number of bytes request
@@ -145,13 +145,13 @@ Purpose:  called when the SS pin has been put low
 
 #if defined (SPI_MASTER_ENABLED)
 /*************************************************************************
-Function: spi_init_master()
+Function: spi_master_init()
 Purpose:  Initialize SPI in Master Mode
 Input:    mode SPI_MODEx (x : 0 -> 3)
 Input:    clock SPI_CLOCK_DIVx (x : 2, 4, 8, 16, 32, 64 or 128)
 Returns:  none
 **************************************************************************/
-void spi_init_master(uint8_t mode, uint8_t clock){
+void spi_master_init(uint8_t mode, uint8_t clock){
 	
 	// Pin Configuration
 	SPI_DDR |= (1<<SPI_PIN_SS);
@@ -197,7 +197,7 @@ void spi_master_transmit(const char *s){
 }
 /*************************************************************************
 Function: spi_master_read()
-Purpose:  transmit 0x00 to get the number of bytes requeste
+Purpose:  transmit 0x00 to get the number of bytes requested
 Input:    numberOfBytes that want to be read
 Returns:  none
 **************************************************************************/
@@ -222,12 +222,12 @@ void spi_master_transmitToSlave(spi_slave_info slave, const char *s){
 }*/
 #elif defined (SPI_SLAVE_ENABLED)
 /*************************************************************************
-Function: spi_init_slave()
+Function: spi_slave_init()
 Purpose:  Initialize SPI in Slave Mode
 Input:    none
 Returns:  none
 **************************************************************************/
-void spi_init_slave(void){
+void spi_slave_init(void){
 
 	// Set MISO output, all others input
 	SPI_DDR |= (1<<SPI_PIN_MISO);
